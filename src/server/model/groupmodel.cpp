@@ -1,6 +1,6 @@
 #include "groupmodel.hpp"
 #include "db.h"
-
+#include"ConnectionPool.h"
 // 创建群组
 bool GroupModel::createGroup(Group &group)
 {
@@ -8,13 +8,15 @@ bool GroupModel::createGroup(Group &group)
     char sql[1024] = {0};
     sprintf(sql, "insert into allgroup(groupname,groupdesc) values('%s','%s')", group.getName().c_str(), group.getDesc().c_str());
 
-    MySQL mysql;
-    if (mysql.connect())
+    //MySQL mysql;
+    shared_ptr<MySQL>sp=ConnectionPool::getConncetionPool()->getConnection();
+    if (sp!=nullptr)
     {
-        if (mysql.update(sql))
+        if (sp->update(sql))
         {
             // 获取插入成功的用户数据生成的主键id
-            group.setId(mysql_insert_id(mysql.getConnection()));
+            group.setId(mysql_insert_id(sp->getConnection()));
+            
             return true;
         }
     }
@@ -26,10 +28,11 @@ void GroupModel::addGroup(int userid, int groupid, string role)
     // 组装sql语句
     char sql[1024] = {0};
     sprintf(sql, "insert into groupuser values('%d','%d','%s')", groupid, userid, role.c_str());
-    MySQL mysql;
-    if (mysql.connect())
+    //MySQL mysql;
+    shared_ptr<MySQL>sp=ConnectionPool::getConncetionPool()->getConnection();
+    if (sp!=nullptr)
     {
-        mysql.update(sql);
+        sp->update(sql);
     }
 }
 // 查询用户所在群组信息
@@ -45,10 +48,11 @@ vector<Group> GroupModel::queryGroups(int userid)
             userid);
 
     vector<Group> groupVec;
-    MySQL mysql;
-    if (mysql.connect())
+    //MySQL mysql;
+    shared_ptr<MySQL>sp=ConnectionPool::getConncetionPool()->getConnection();
+    if (sp!=nullptr)
     {
-        MYSQL_RES *res = mysql.query(sql);
+        MYSQL_RES *res = sp->query(sql);
         if (res != nullptr)
         {
             MYSQL_ROW row;
@@ -70,7 +74,7 @@ vector<Group> GroupModel::queryGroups(int userid)
     {
         sprintf(sql,"select a.id,a.name,a.state,b.grouprole from user a \
        inner join groupuser b on b.userid= a.id where b.groupid=%d",group.getId());
-       MYSQL_RES *res=mysql.query(sql);
+       MYSQL_RES *res=sp->query(sql);
        if(res!=nullptr)
        {
         MYSQL_ROW  row;
@@ -97,10 +101,11 @@ vector<int> GroupModel::queryGroupUsers(int userid, int groupid)
     char sql[1024] = {0};
     sprintf(sql, "select userid from groupuser where groupid = %d and userid !=%d",groupid,userid );
     vector<int> idVec;
-    MySQL mysql;
-    if(mysql.connect())
+    //MySQL mysql;
+    shared_ptr<MySQL>sp=ConnectionPool::getConncetionPool()->getConnection();
+    if(sp!=nullptr)
     {
-        MYSQL_RES *res=mysql.query(sql);
+        MYSQL_RES *res=sp->query(sql);
         if(res!=nullptr)
         {
             MYSQL_ROW row;

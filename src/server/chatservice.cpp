@@ -84,7 +84,13 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
     int id = js["id"].get<int>();
     string pwd = js["password"];
 
+    // 【新增调试打印 1】看看收到的 JSON 数据对不对
+    LOG_INFO << "Login Request -> ID: " << id << " Pwd: " << pwd;
+
     User user = _userModel.query(id);
+    // 【新增调试打印 2】看看从数据库查到了什么
+    LOG_INFO << "DB Query Result -> ID: " << user.getId() << " Pwd: " << user.getPwd();
+    
     if (user.getId() == id && user.getPwd() == pwd)
     {
         if (user.getState() == "online")
@@ -307,7 +313,6 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
     lock_guard<mutex> lock(_connMutex);
     for (int id : useridVec)
     {
-
         auto it = _userConnMap.find(id);
         if (it != _userConnMap.end())
         {
@@ -322,7 +327,6 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
             {
                 _redis.publish(id,js.dump());
             }
-
             else
             {
                 //存储离线消息
@@ -332,7 +336,7 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
         }
     }
 }
-//从redis消息队列中国获取订阅的消息
+//从redis消息队列中获取订阅的消息
 void ChatService::handleRedisSubscribeMessage(int userid,string msg)
 {
     lock_guard<mutex>lock(_connMutex);
