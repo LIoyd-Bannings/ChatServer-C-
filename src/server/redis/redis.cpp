@@ -50,6 +50,8 @@ Redis::Redis():_publish_context(nullptr),_subscribe_context(nullptr)
     //向redis指定的通道channel发布消息
     bool Redis::publish(int channel,string message)
     {
+        // 【加锁】保护 _publish_context
+        lock_guard<mutex> lock(_publishMutex);
         redisReply *reply=(redisReply *)redisCommand(_publish_context,"PUBLISH %d %s",channel,message.c_str());
         if(nullptr==reply)
         {
@@ -66,6 +68,9 @@ Redis::Redis():_publish_context(nullptr),_subscribe_context(nullptr)
         //subscribe命令本身 会造成线程阻塞等待通道里面发生消息 这里只做订阅通道 不接受通道消息
         //通道消息的接受 专门在observer_channel_message函数的独立线程进行
         //只负责发送命令 不阻塞接收redis server 响应消息 否则和notifyMsg线程抢占响应资源
+        // 加锁保护 _subscribe_context
+        // 注意：虽然 observer 线程也在读这个 context，但 hiredis 在 append 命令时必须独占写
+        lock_guard<mutex> lock(_subscribeMutex);
         if(REDIS_ERR==redisAppendCommand(this->_subscribe_context,"SUBSCRIBE %d",channel))
         {
             cerr<<"subscribe command failed!"<<endl;
@@ -88,7 +93,9 @@ Redis::Redis():_publish_context(nullptr),_subscribe_context(nullptr)
     //向redis指定的通道 unsubscribe取消订阅消息
     bool Redis::unsubscribe(int channel)
     {
-   if(REDIS_ERR==redisAppendCommand(this->_subscribe_context,"UNSUBSCRIBE %d",channel))
+        // 【加锁】保护 _subscribe_context
+        lock_guard<mutex> lock(_subscribeMutex);
+        if(REDIS_ERR==redisAppendCommand(this->_subscribe_context,"UNSUBSCRIBE %d",channel))
         {
             cerr<<"unsubscribe command failed!"<<endl;
             return false;

@@ -22,6 +22,43 @@ const int server_port=6000;
 atomic<int> g_tx_count{0};// 发送成功的消息数
 atomic<long long> g_total_cost{0};// 总耗时 (微秒)
 
+
+bool sendProto(int fd ,string json_str)
+{
+    uint32_t len=htonl(json_str.size());
+    string sendBuf;
+    sendBuf.resize(4 + json_str.size());
+    memcpy(&sendBuf[0],&len,4);
+    memcpy(&sendBuf[4],json_str.data(),json_str.size());
+    size_t total_sent=0;
+    size_t to_send=sendBuf.size();
+    const char* ptr=sendBuf.data();
+
+    while(total_sent<to_send)
+    {
+        ssize_t sent=send(fd,ptr+total_sent,to_send-total_sent,0);
+        if(sent==-1)
+        {
+            if(errno==EINTR)continue;
+            if(errno==EAGAIN||errno==EWOULDBLOCK)
+            {   
+                usleep(1000);
+                continue;
+            }
+            return false; 
+        }
+        if (sent == 0) 
+        {
+            return false;
+        }
+        total_sent += sent;
+    }
+
+    return true;
+}
+
+
+
 //获取当前时间的字符串
 string getCurrentTime()
 {
@@ -65,7 +102,7 @@ void benchmarkTask(int userId)
     js["id"]=userId;
     js["password"]="123456";
     string request=js.dump();
-    if(send(clientfd,request.c_str(),strlen(request.c_str()),0)==-1)
+    if(!sendProto(clientfd, request))
     {
         cerr << "send login error" << endl;
         close(clientfd);
@@ -105,13 +142,8 @@ void benchmarkTask(int userId)
         string chatReq=chatjs.dump();
 
         auto start=chrono::high_resolution_clock::now();
-        int sendlen=send(clientfd,chatReq.c_str(),strlen(chatReq.c_str()),0);
-
-        // 注意：如果服务器对聊天消息不回复ACK，这里就不需要 recv
-        // 如果服务器会回复 "发送成功"，则需要在这里 recv，否则 TCP 缓冲区会满
-        // 假设这里我们只测发送吞吐量，且服务器不回复聊天ACK：
-
-        if(sendlen!=-1)
+        //int sendlen=send(clientfd,chatReq.c_str(),strlen(chatReq.c_str()),0);
+        if(sendProto(clientfd, chatReq))
         {   
             auto end=chrono::high_resolution_clock::now();
             auto cost=chrono::duration_cast<chrono::microseconds>(end-start).count();
@@ -123,7 +155,7 @@ void benchmarkTask(int userId)
             cerr << "send msg error" << endl;
             break;
         }
-
+        std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
     close(clientfd);
 }

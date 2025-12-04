@@ -106,6 +106,7 @@ void ConnectionPool::produceConnectionTask()
             }
             else
             {
+                
                 LOG_ERROR << "create mysql connection error!";
                 delete p;
             }

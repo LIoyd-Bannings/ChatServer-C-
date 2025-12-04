@@ -4,6 +4,7 @@
 #include<hiredis/hiredis.h>
 #include<thread>
 #include<functional>
+#include<mutex>
 using namespace std;
 
 class Redis
@@ -39,6 +40,10 @@ private:
 
     //回调操作 收到订阅的消息 给service层上报
     function<void(int,string)> _notify_message_handler;
+
+    //  两个互斥锁
+    mutex _publishMutex;    // 保护 publish 上下文
+    mutex _subscribeMutex;  // 保护 subscribe 上下文
 
 };
 
